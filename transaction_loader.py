@@ -1,7 +1,7 @@
 # transaction_loader.py
 """
 Utility functions for loading the supermarket dataset and building
-a co-purchase graph based on (member_id, date) transaction grouping.
+a co-purchase graph based on (Member_number, Date) transaction grouping.
 """
 
 import csv
@@ -14,17 +14,13 @@ from copurchase_graph import CoPurchaseGraph
 
 def load_transactions(filename: str) -> Dict[Tuple[str, str], List[str]]:
     """
-    Read the supermarket dataset and group items by (member_id, date).
+    Read the supermarket dataset and group items by (Member_number, Date).
 
-    Returns:
-        transactions: dict where key = (member_id, date)
-                      value = list of itemDescriptions for that transaction
-
-    Example:
-        {
-            ("1001", "2024-01-01") : ["BREAD", "MILK", "EGGS"],
-            ("2002", "2024-01-01") : ["BANANAS", "APPLES"]
-        }
+    NOTE:
+    This version is hardcoded for your dataset, which contains:
+        - "Member_number"
+        - "Date"
+        - "itemDescription"
     """
 
     transactions = defaultdict(list)
@@ -32,19 +28,27 @@ def load_transactions(filename: str) -> Dict[Tuple[str, str], List[str]]:
     with open(filename, "r", newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
 
-        # Ensure dataset has the required fields
-        required = {"member_id", "date", "itemDescription"}
-        if not required.issubset(reader.fieldnames):
+        # Hardcoded column names for your dataset
+        member_col = "Member_number"
+        date_col = "Date"
+        item_col = "itemDescription"
+
+        # Check presence of columns
+        if member_col not in reader.fieldnames or \
+           date_col not in reader.fieldnames or \
+           item_col not in reader.fieldnames:
             raise ValueError(
-                f"CSV must contain columns: {required}. Found: {reader.fieldnames}"
+                f"CSV must contain: {member_col}, {date_col}, {item_col}. "
+                f"Found: {reader.fieldnames}"
             )
 
+        # Build baskets
         for row in reader:
-            member = row["member_id"].strip()
-            date = row["date"].strip()
-            item = row["itemDescription"].strip()
+            member = row[member_col].strip()
+            date = row[date_col].strip()
+            item = row[item_col].strip()
 
-            if item:  # ignore empty rows
+            if item:
                 transactions[(member, date)].append(item)
 
     return transactions
@@ -52,15 +56,12 @@ def load_transactions(filename: str) -> Dict[Tuple[str, str], List[str]]:
 
 def build_graph_from_file(filename: str) -> CoPurchaseGraph:
     """
-    Build and return a CoPurchaseGraph from the CSV dataset.
+    Build and return a CoPurchaseGraph using your dataset's columns.
 
     Steps:
-        1. Load transactions grouped by (member_id, date)
-        2. For each transaction basket, generate all item pairs
-        3. Add co-purchases to the graph
-
-    Returns:
-        CoPurchaseGraph instance filled with item co-occurrence edges.
+        1. Load transactions grouped by (Member_number, Date)
+        2. For each basket, generate item pairs
+        3. Add/update edges in the graph
     """
 
     transactions = load_transactions(filename)
@@ -68,14 +69,11 @@ def build_graph_from_file(filename: str) -> CoPurchaseGraph:
     graph = CoPurchaseGraph()
 
     for basket in transactions.values():
-        # Remove exact duplicates within the same basket
-        unique_items = list(set(basket))
+        unique_items = list(set(basket))  # remove duplicates within same transaction
 
-        # Ensure nodes exist
         for item in unique_items:
             graph.add_item(item)
 
-        # Add co-purchase edges for every unordered pair
         for itemA, itemB in combinations(unique_items, 2):
             graph.add_co_purchase(itemA, itemB)
 
