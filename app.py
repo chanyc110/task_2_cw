@@ -13,7 +13,10 @@ Features:
 
 import streamlit as st
 
-
+from graph_plotting import (
+    draw_ego_network,
+    draw_top_k_association_graph
+)
 from transaction_loader import build_graph_from_file
 from graph_algorithms import (
     bfs_related_items,
@@ -24,60 +27,7 @@ from graph_algorithms import (
     strongest_associations,
 )
 
-import matplotlib.pyplot as plt
-import numpy as np
 
-def draw_bfs_graph(start_item, bfs_list):
-    fig, ax = plt.subplots(figsize=(8, 8))
-
-    # Center node (start item)
-    ax.scatter(0, 0, s=600, color="blue")
-    ax.text(0, 0, start_item, fontsize=14, ha='center', va='center', color="white")
-
-    # Arrange related items in a circle
-    n = len(bfs_list)
-    angles = np.linspace(0, 2*np.pi, n, endpoint=False)
-
-    for i, item in enumerate(bfs_list):
-        x = 4 * np.cos(angles[i])
-        y = 4 * np.sin(angles[i])
-
-        ax.scatter(x, y, s=300, color="#66b3ff")
-        ax.text(x, y, item, fontsize=10, ha='center', va='center')
-
-        # Draw edge to the center
-        ax.plot([0, x], [0, y], color="gray", linewidth=1)
-
-    ax.set_title(f"BFS Related Items for '{start_item}'")
-    ax.axis("off")
-    return fig
-
-
-def draw_dfs_graph(start_item, dfs_list):
-    fig, ax = plt.subplots(figsize=(8, 8))
-
-    # Start node
-    ax.scatter(0, 0, s=600, color="red")
-    ax.text(0, 0, start_item, fontsize=14, ha='center', va='center', color="white")
-
-    # DFS chain = linear path
-    x = 0
-    y = 0
-    dx = 3
-
-    for i, item in enumerate(dfs_list):
-        x_new = x + dx
-        ax.scatter(x_new, y, s=300, color="#ff9999")
-        ax.text(x_new, y, item, fontsize=10, ha='center', va='center')
-
-        # draw line
-        ax.plot([x, x_new], [y, y], color="gray", linewidth=1)
-
-        x = x_new  # move to next
-
-    ax.set_title(f"DFS Deep Association Chain for '{start_item}'")
-    ax.axis("off")
-    return fig
 
 
 # ============================================================
@@ -130,12 +80,13 @@ items = sorted(graph.keys())
 # Tabs for Algorithms
 # ============================================================
 
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "🔍 Item Explorer",
     "📈 Recommendation Engine",
     "👥 Frequent Pairs",
     "🏆 Top Bundles",
-    "🌐 Related Items (BFS / DFS)"
+    "🌐 Related Items (BFS / DFS)",
+    "🧠 Item Relationship Graph"
 ])
 
 
@@ -143,27 +94,75 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # TAB 1 — ITEM EXPLORER
 # ============================================================
 with tab1:
-    st.header("🔍 Item Explorer")
-    selected_item = st.selectbox("Select an item:", items)
+    st.header("🔍 Item Explorer (Pairwise Analysis)")
 
-    st.subheader(f"Direct Neighbours of **{selected_item}**")
-    neighbours = graph_obj.neighbours(selected_item)
+    col1, col2 = st.columns(2)
 
-    if neighbours:
+    with col1:
+        item_a = st.selectbox("Select first item:", items, key="item_a")
+
+    with col2:
+        item_b = st.selectbox("Select second item:", items, key="item_b")
+
+    if item_a == item_b:
+        st.warning("Please select two different items.")
+        st.stop()
+
+    st.subheader("📌 Direct Relationship")
+
+    weight = graph_obj.edge_weight(item_a, item_b)
+
+    if weight > 0:
+        st.success(
+            f"**{item_a}** and **{item_b}** were co-purchased **{weight} times**."
+        )
+    else:
+        st.info(
+            f"**{item_a}** and **{item_b}** were never directly co-purchased."
+        )
+
+    # --------------------------------------------------
+    # Shared neighbours (bridge items)
+    # --------------------------------------------------
+    st.subheader("🔗 Shared Associated Items")
+
+    neighbours_a = set(graph_obj.neighbours(item_a).keys())
+    neighbours_b = set(graph_obj.neighbours(item_b).keys())
+
+    shared = neighbours_a.intersection(neighbours_b)
+
+    if shared:
         st.table({
-            "Item": list(neighbours.keys()),
-            "Co-purchase Count": list(neighbours.values())
+            "Shared Item": list(shared),
+            "With A": [graph_obj.edge_weight(item_a, x) for x in shared],
+            "With B": [graph_obj.edge_weight(item_b, x) for x in shared],
         })
     else:
-        st.info("This item has no direct co-purchases.")
+        st.info("No shared associated items found.")
 
-    st.subheader("Top Associations Across All Items")
-    top_assoc = strongest_associations(graph, top_n=10)
-    st.table({
-        "Item A": [a for a, _, _ in top_assoc],
-        "Item B": [b for _, b, _ in top_assoc],
-        "Weight": [w for _, _, w in top_assoc],
-    })
+    # --------------------------------------------------
+    # Focused visualisation (optional but useful)
+    # --------------------------------------------------
+    st.subheader("📊 Relationship Context (Ego View)")
+
+    fig_a = draw_ego_network(item_a, graph, top_n=5)
+    fig_b = draw_ego_network(item_b, graph, top_n=5)
+
+    col3, col4 = st.columns(2)
+
+    with col3:
+        st.caption(f"Ego Network for **{item_a}**")
+        if fig_a:
+            st.pyplot(fig_a)
+        else:
+            st.info("No associations.")
+
+    with col4:
+        st.caption(f"Ego Network for **{item_b}**")
+        if fig_b:
+            st.pyplot(fig_b)
+        else:
+            st.info("No associations.")
 
 
 # ============================================================
@@ -248,30 +247,25 @@ with tab5:
     bfs_all = bfs_related_items(graph, start_item)[:15]
     dfs_all = dfs_related_items(graph, start_item)[:15]
 
-    col1, col2 = st.columns(2)
-
-    with col1:
-        st.subheader("🔵 BFS – Closest Related Items (Visual)")
-        if bfs_all:
-            fig = draw_bfs_graph(start_item, bfs_all)
-            st.pyplot(fig)
-        else:
-            st.info("No BFS-related items found.")
-
-    with col2:
-        st.subheader("🔴 DFS – Deepest Association Chain (Visual)")
-        if dfs_all:
-            fig = draw_dfs_graph(start_item, dfs_all)
-            st.pyplot(fig)
-        else:
-            st.info("No DFS-related items found.")
-
     # Optional: text display below
     st.subheader("📜 BFS Text Output")
     st.write(", ".join(bfs_all) if bfs_all else "None")
 
     st.subheader("📜 DFS Text Output")
     st.write(" → ".join(dfs_all) if dfs_all else "None")
+    
+    
+with tab6:
+    st.header("🧠 Item Relationship Graph (Strongest Associations)")
+
+    k = st.slider("Number of strongest associations to display:", 5, 20, 10)
+
+    fig = draw_top_k_association_graph(graph, top_k=k)
+    if fig:
+        st.pyplot(fig)
+    else:
+        st.info("No associations available to visualise.")
+
 
 
 
