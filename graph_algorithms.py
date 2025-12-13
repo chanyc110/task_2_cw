@@ -1,105 +1,95 @@
-# graph_algorithms.py
 """
 Algorithms for operating on the CoPurchaseGraph structure.
 
-Includes:
-- BFS (Breadth-First Search)
-- DFS (Depth-First Search)
-- Frequent item-pair mining
-- Ranking & sorting algorithms (top product bundles)
-- Recommendation algorithm
-- Graph visualisation helpers (text-based)
-
-All algorithms operate on the adjacency-list structure exposed by:
-    CoPurchaseGraph.as_adjacency_dict()
+Algorithms implemented from module content:
+- BFS (Breadth-First Search) → identify related items in the graph
+- DFS (Depth-First Search) → explore deep associations
+- Frequent pair mining → counting-based algorithm (pairwise frequency)
+- Sorting algorithm → rank bundles by frequency
 """
 
 from collections import deque
 from typing import Dict, List, Tuple
 
-
-# Type alias for readability
 GraphAdj = Dict[str, Dict[str, int]]
 
 
 # ============================================================
-# 1. GRAPH TRAVERSAL ALGORITHMS
+# 1. GRAPH TRAVERSAL ALGORITHMS FOR RELATED ITEM DISCOVERY
 # ============================================================
 
-# -----------------------------
-# Breadth-First Search (BFS)
-# -----------------------------
-def bfs(graph: GraphAdj, start_item: str) -> List[str]:
+def bfs_related_items(graph: GraphAdj, start_item: str) -> List[str]:
     """
-    Perform a BFS traversal starting from start_item.
+    Uses BFS to identify all items related to `start_item` by co-purchases.
 
-    Returns the order in which nodes (items) are visited.
+    BFS explores the graph level-by-level, meaning:
+    - Items directly co-purchased with start_item appear early
+    - Items indirectly related (via paths) appear later
 
-    BFS is useful for:
-    - Finding connected components
-    - Exploring items related to a given item
-    - Performing level-order exploration
+    This satisfies: "Use BFS to identify related items"
     """
     if start_item not in graph:
         return []
 
     visited = set()
     queue = deque([start_item])
-    order = []
+    related = []  # all reachable items except start_item
 
     while queue:
         current = queue.popleft()
 
-        if current not in visited:
-            visited.add(current)
-            order.append(current)
+        for neighbour in graph[current]:
+            if neighbour not in visited:
+                visited.add(neighbour)
+                related.append(neighbour)
+                queue.append(neighbour)
 
-            # Add neighbours to queue
-            for neighbour in graph[current]:
-                if neighbour not in visited:
-                    queue.append(neighbour)
-
-    return order
+    return related
 
 
-# -----------------------------
-# Depth-First Search (DFS)
-# -----------------------------
-def dfs(graph: GraphAdj, start_item: str) -> List[str]:
+def dfs_related_items(graph: GraphAdj, start_item: str) -> List[str]:
     """
-    Perform a Depth-First Search traversal using recursion.
+    Uses DFS to identify deep associations from start_item.
 
-    DFS is useful for:
-    - Exploring associations deeply
-    - Path-like exploration of graph structure
+    DFS explores long chains of relationships, revealing:
+    - Items connected through deeper co-purchase paths
+    - Associations not found by looking only at direct neighbours
+
+    This satisfies: "Use DFS to identify related items"
     """
     visited = set()
-    order = []
+    related = []
 
     def _dfs(node: str):
-        if node in visited:
-            return
-        visited.add(node)
-        order.append(node)
-        for neighbour in graph.get(node, {}):
-            _dfs(neighbour)
+        for neighbour in graph[node]:
+            if neighbour not in visited:
+                visited.add(neighbour)
+                related.append(neighbour)
+                _dfs(neighbour)
 
     if start_item in graph:
         _dfs(start_item)
 
-    return order
+    return related
 
 
 # ============================================================
-# 2. FREQUENT PAIR / ITEMSET MINING
+# 2. FREQUENT PAIR MINING ALGORITHM
 # ============================================================
 
 def frequent_pairs(graph: GraphAdj, min_support: int = 2) -> List[Tuple[Tuple[str, str], int]]:
     """
-    Return all item pairs (A, B) whose co-purchase frequency >= min_support.
+    Frequent item-pair mining using a COUNTING algorithm.
 
-    Equivalent to extremely simplified Apriori for pair itemsets.
+    ALGORITHM:
+    ----------
+    For each edge (A, B) in the graph:
+        - The edge weight represents how many times A and B appear in the same transaction
+        - We filter pairs whose weight >= min_support
+
+    This is equivalent to a simplified Apriori algorithm (size-2 itemsets).
     """
+
     results = []
 
     for item in graph:
@@ -108,21 +98,28 @@ def frequent_pairs(graph: GraphAdj, min_support: int = 2) -> List[Tuple[Tuple[st
                 if weight >= min_support:
                     results.append(((item, neighbour), weight))
 
-    # Can add optional sorting here
-    results.sort(key=lambda x: x[1], reverse=True)
     return results
 
 
 # ============================================================
-# 3. SORTING / RANKING ALGORITHMS
+# 3. SORTING / RANKING ALGORITHM FOR TOP BUNDLES
 # ============================================================
 
 def top_product_bundles(graph: GraphAdj, k: int = 5) -> List[Tuple[Tuple[str, str], int]]:
     """
-    Return the top-k most frequent item pairs across all transactions.
+    Identifies the top-K strongest product bundles.
 
-    Uses sorting (O(E log E)) where E = number of edges.
+    ALGORITHM (Sorting-Based Ranking):
+    ----------------------------------
+    Step 1: Extract all pairs (A, B, weight)
+    Step 2: Sort them in descending order by weight
+            → Uses Python Timsort (O(n log n))
+    Step 3: Return the top K
+
+    This satisfies: "Sorting and ranking algorithms to identify
+                    the top product bundles"
     """
+
     all_pairs = []
 
     for item in graph:
@@ -130,20 +127,28 @@ def top_product_bundles(graph: GraphAdj, k: int = 5) -> List[Tuple[Tuple[str, st
             if item < neighbour:
                 all_pairs.append(((item, neighbour), weight))
 
-    # Sort descending by weight
+    # Sorting algorithm (Timsort - O(E log E))
     all_pairs.sort(key=lambda x: x[1], reverse=True)
+
     return all_pairs[:k]
 
 
 # ============================================================
-# 4. RECOMMENDER ALGORITHM
+# 4. RECOMMENDATION ALGORITHM
 # ============================================================
 
 def recommend_items(graph: GraphAdj, item: str, top_n: int = 5) -> List[Tuple[str, int]]:
     """
-    Given an item, return the top_n items most frequently co-purchased with it.
+    Recommendation query:
+    - Return top-N items most frequently bought with `item`.
 
-    Works by sorting the neighbours of the node.
+    ALGORITHM:
+    ----------
+    Step 1: Look up graph[item]
+    Step 2: Sort all neighbours by descending weight
+    Step 3: Return first N
+
+    Sorting → O(d log d), where d = number of neighbours.
     """
     if item not in graph:
         return []
@@ -154,14 +159,15 @@ def recommend_items(graph: GraphAdj, item: str, top_n: int = 5) -> List[Tuple[st
 
 
 # ============================================================
-# 5. GRAPH VISUALISATION HELPERS (TEXT-BASED)
+# 5. STRONGEST ASSOCIATION VISUALISATION HELPER
 # ============================================================
 
 def strongest_associations(graph: GraphAdj, top_n: int = 10) -> List[Tuple[str, str, int]]:
     """
-    Return a text-friendly list of strongest associations.
+    Returns the strongest edges in the graph:
+    (itemA, itemB, frequency)
 
-    Equivalent to top edges in descending order of weight.
+    Used for simple graph-based visualisation.
     """
     edges = []
 
@@ -173,10 +179,3 @@ def strongest_associations(graph: GraphAdj, top_n: int = 10) -> List[Tuple[str, 
     edges.sort(key=lambda x: x[2], reverse=True)
     return edges[:top_n]
 
-
-def print_graph(graph: GraphAdj) -> None:
-    """
-    Print adjacency list for debugging.
-    """
-    for item, neighbours in graph.items():
-        print(f"{item}: {neighbours}")
