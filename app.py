@@ -105,8 +105,7 @@ with tab1:
         item_b = st.selectbox("Select second item:", items, key="item_b")
 
     if item_a == item_b:
-        st.warning("Please select two different items.")
-        st.stop()
+        st.warning("Please select two different items to compare.")
 
     st.subheader("📌 Direct Relationship")
 
@@ -233,7 +232,7 @@ with tab5:
     
     start_item = st.selectbox("Select starting item:", items, key="related_item")
 
-    st.subheader("🔍 Direct Co-Purchases (Most Useful Insight)")
+    st.subheader("🔍 Direct Co-Purchases")
     direct = graph_obj.neighbours(start_item)
     if direct:
         st.table({
@@ -262,7 +261,7 @@ with tab6:
 
     fig = draw_top_k_association_graph(graph, top_k=k)
     if fig:
-        st.pyplot(fig)
+        st.pyplot(fig, width='content')
     else:
         st.info("No associations available to visualise.")
 

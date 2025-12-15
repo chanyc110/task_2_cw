@@ -105,32 +105,43 @@ def frequent_pairs(graph: GraphAdj, min_support: int = 2) -> List[Tuple[Tuple[st
 # 3. SORTING / RANKING ALGORITHM FOR TOP BUNDLES
 # ============================================================
 
+def quick_sort_items(pairs: List[Tuple[str, int]]) -> List[Tuple[str, int]]:
+    if len(pairs) <= 1:
+        return pairs
+
+    pivot = pairs[len(pairs) // 2][1]
+
+    left = [p for p in pairs if p[1] > pivot]
+    middle = [p for p in pairs if p[1] == pivot]
+    right = [p for p in pairs if p[1] < pivot]
+
+    return quick_sort_items(left) + middle + quick_sort_items(right)
+
+
+
 def top_product_bundles(graph: GraphAdj, k: int = 5) -> List[Tuple[Tuple[str, str], int]]:
     """
     Identifies the top-K strongest product bundles.
 
-    ALGORITHM (Sorting-Based Ranking):
-    ----------------------------------
-    Step 1: Extract all pairs (A, B, weight)
-    Step 2: Sort them in descending order by weight
-            → Uses Python Timsort (O(n log n))
-    Step 3: Return the top K
-
-    This satisfies: "Sorting and ranking algorithms to identify
-                    the top product bundles"
+    ALGORITHM (Quick Sort Based Ranking):
+    -------------------------------------
+    Step 1: Extract all item pairs and their co-purchase frequency
+    Step 2: Sort pairs using Quick Sort (descending by frequency)
+    Step 3: Return the top K results
     """
 
     all_pairs = []
 
     for item in graph:
         for neighbour, weight in graph[item].items():
-            if item < neighbour:
+            if item < neighbour:  # avoid duplicate pairs
                 all_pairs.append(((item, neighbour), weight))
 
-    # Sorting algorithm (Timsort - O(E log E))
-    all_pairs.sort(key=lambda x: x[1], reverse=True)
+    # Apply Quick Sort instead of Python's built-in sort
+    sorted_pairs = quick_sort_items(all_pairs)
 
-    return all_pairs[:k]
+    return sorted_pairs[:k]
+
 
 
 # ============================================================
@@ -153,9 +164,10 @@ def recommend_items(graph: GraphAdj, item: str, top_n: int = 5) -> List[Tuple[st
     if item not in graph:
         return []
 
-    neighbours = graph[item]
-    ranked = sorted(neighbours.items(), key=lambda x: x[1], reverse=True)
-    return ranked[:top_n]
+    neighbour_pairs = list(graph[item].items())
+    sorted_pairs = quick_sort_items(neighbour_pairs)
+    
+    return sorted_pairs[:top_n]
 
 
 # ============================================================

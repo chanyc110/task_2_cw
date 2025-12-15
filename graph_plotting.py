@@ -114,8 +114,9 @@ def draw_top_k_association_graph(graph, top_k=8):
 
 def draw_top_k_association_graph(graph, top_k=8):
     """
-    Clean, reference-style item relationship graph
+    Compact, clean item relationship graph
     showing top-K strongest associations.
+    Optimised for Streamlit display.
     """
 
     edges = strongest_associations(graph, top_n=top_k)
@@ -125,17 +126,18 @@ def draw_top_k_association_graph(graph, top_k=8):
     # Unique nodes
     nodes = list({n for a, b, _ in edges for n in (a, b)})
 
-    # Compact figure (fits Streamlit window)
-    fig, ax = plt.subplots(figsize=(5.8, 4.8))
+    # Smaller figure to fit Streamlit
+    fig, ax = plt.subplots(figsize=(4.6, 3.8))
+
     ax.set_title(
         f"Top {top_k} Strongest Item Associations",
-        fontsize=12,
-        pad=8
+        fontsize=11,
+        pad=6
     )
 
-    # Balanced circular layout
+    # Tighter circular layout
     angles = np.linspace(0, 2 * np.pi, len(nodes), endpoint=False)
-    radius = 2.4
+    radius = 1.9
     pos = {
         node: (radius * np.cos(a), radius * np.sin(a))
         for node, a in zip(nodes, angles)
@@ -149,23 +151,23 @@ def draw_top_k_association_graph(graph, top_k=8):
         arrow = FancyArrowPatch(
             (x1, y1),
             (x2, y2),
-            arrowstyle='-|>',
-            linewidth=0.8,
+            arrowstyle='->',
+            linewidth=0.6,
             color='gray',
             alpha=0.6,
-            mutation_scale=10,
+            mutation_scale=8,
             zorder=1
         )
         ax.add_patch(arrow)
 
-    # Draw nodes
+    # Draw nodes (smaller + readable)
     for node, (x, y) in pos.items():
         ax.scatter(
             x, y,
-            s=520,
+            s=360,
             color='#f2a900',
             edgecolors='black',
-            linewidth=1.1,
+            linewidth=0.9,
             zorder=2
         )
         ax.text(
@@ -173,14 +175,14 @@ def draw_top_k_association_graph(graph, top_k=8):
             node,
             ha='center',
             va='center',
-            fontsize=9,
+            fontsize=8,
             fontweight='bold',
             zorder=3
         )
 
     ax.set_aspect('equal')
     ax.axis('off')
-    plt.tight_layout()
+    plt.tight_layout(pad=0.5)
     return fig
 
 
